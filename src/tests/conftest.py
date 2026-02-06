@@ -1,6 +1,6 @@
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from sqlalchemy import insert
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import get_settings
@@ -95,7 +95,15 @@ async def seed_user_groups(db_session: AsyncSession):
     This fixture inserts all user groups defined in UserGroupEnum into the database and commits the transaction.
     It then yields the asynchronous database session for further testing.
     """
-    groups = [{"name": group.value} for group in UserGroupEnum]
-    await db_session.execute(insert(UserGroupModel).values(groups))
+    groups = [
+        {"name": "USER"},
+        {"name": "MODERATOR"},
+        {"name": "ADMIN"},
+    ]
+
+    stmt = insert(UserGroupModel).values(groups)
+    stmt = stmt.on_conflict_do_nothing(index_elements=["name"])
+
+    await db_session.execute(stmt)
     await db_session.commit()
     yield db_session
