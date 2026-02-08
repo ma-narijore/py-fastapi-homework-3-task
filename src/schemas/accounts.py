@@ -21,6 +21,7 @@ class UserRegistrationRequestSchema(BaseModel):
         accounts_validators.validate_email(v)
         return v
 
+
 class UserRegistrationResponseSchema(BaseModel):
     id: int
     email: EmailStr
@@ -49,7 +50,6 @@ class ResetPasswordCompleteRequestSchema(BaseModel):
     email: EmailStr
     token: str
     password: str
-
 
 
 class RefreshTokenRequest(BaseModel):
