@@ -10,7 +10,6 @@ from database.models.accounts import UserGroupEnum
 class UserRegistrationRequestSchema(BaseModel):
     email: EmailStr
     password: str
-    group: UserGroupEnum = None
 
     @field_validator("password")
     def check_password_length(cls, v):
@@ -25,3 +24,37 @@ class UserRegistrationRequestSchema(BaseModel):
 class UserRegistrationResponseSchema(BaseModel):
     id: int
     email: EmailStr
+
+
+class UserResetPassword(BaseModel):
+    email: EmailStr
+
+
+class UserLoginRequestSchema(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class TokenSchema(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+
+class UserActivateRequestSchema(UserResetPassword):
+    activation_token: str
+
+
+class ResetPasswordCompleteRequestSchema(BaseModel):
+    email: EmailStr
+    token: str
+    password: str
+
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class AccessTokenResponse(BaseModel):
+    access_token: str
