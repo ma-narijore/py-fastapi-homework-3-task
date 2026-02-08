@@ -70,7 +70,6 @@ class MovieBaseSchema(BaseModel):
     model_config = {"from_attributes": True}
 
     @field_validator("date")
-    @classmethod
     def validate_date(cls, value):
         current_year = datetime.now().year
         if value.year > current_year + 1:

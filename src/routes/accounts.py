@@ -1,4 +1,3 @@
-import bcrypt
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy import select
@@ -30,7 +29,6 @@ from security.interfaces import JWTAuthManagerInterface
 from security.utils import generate_secure_token
 
 router = APIRouter()
-salt = bcrypt.gensalt()
 
 
 # ----------------- Helper functions -----------------
@@ -55,9 +53,13 @@ async def get_user_group(db: AsyncSession, name: str = "user"):
 
 async def validate_token(token_obj, provided_token, token_type="Token"):
     if not token_obj or token_obj.token != provided_token:
-        raise HTTPException(status_code=400, detail=f"Invalid or expired activation token.")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {token_type}."
+        )
 
     if token_obj.expires_at:
+        # Ensure expires_at is timezone-aware (assume UTC if naive)
         expires_at_aware = (
             token_obj.expires_at
             if token_obj.expires_at.tzinfo is not None
@@ -65,7 +67,10 @@ async def validate_token(token_obj, provided_token, token_type="Token"):
         )
 
         if expires_at_aware < datetime.now(timezone.utc):
-            raise HTTPException(status_code=400, detail=f"Invalid or expired activation token.")
+            raise HTTPException(
+                status_code=400,
+                detail=f"{token_type} expired."
+            )
 
 
 # ----------------- Routes -----------------
@@ -79,7 +84,7 @@ async def register(
 ):
     existing_user = await get_user_by_email(db, data.email)
     if existing_user:
-        raise HTTPException(status_code=409, detail="A user with this email {email} already exists.")
+        raise HTTPException(status_code=409, detail=f"A user with this email {data.email} already exists.")
 
     group = await get_user_group(db)
     token = ActivationTokenModel(
@@ -111,7 +116,7 @@ async def activate(data: UserActivateRequestSchema, db: AsyncSession = Depends(g
         raise HTTPException(status_code=400, detail="User account is already active.")
 
     await validate_token(
-        user.activation_token, data.activation_token, token_type="Activation token"
+        user.activation_token, data.token, token_type="Invalid or expired activation token."
     )
 
     try:
@@ -158,22 +163,30 @@ async def reset_password_complete(
         raise HTTPException(status_code=400, detail="Invalid email or token.")
 
     token_obj = user.password_reset_token
+
+    # Step 1 — validate token safely
     try:
         await validate_token(token_obj, data.token, token_type="Password reset token")
-    except:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid email or token."
-        )
+    except HTTPException as e:
+        # Delete invalid/expired token before returning error
+        if token_obj:
+            async with db.begin():
+                await db.delete(token_obj)
+        raise e  # re-raise the original 400 error
 
+    # Step 2 — reset password safely
     try:
         async with db.begin():
-            user.password = data.password
-            await db.delete(token_obj)
+            user.password = data.password  # uses setter to hash
+            await db.delete(token_obj)  # remove token after successful use
         await db.refresh(user)
+
         return {"message": "Password reset successfully."}
-    except SQLAlchemyError:
-        raise HTTPException(status_code=500, detail="An error occurred while resetting the password.")
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while resetting the password."
+        )
 
 
 @router.post("/login/", response_model=TokenSchema)

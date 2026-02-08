@@ -1,6 +1,5 @@
-import string
 
-from pydantic import BaseModel, EmailStr, field_validator, Field
+from pydantic import BaseModel, EmailStr, field_validator
 
 from database import accounts_validators
 
@@ -43,7 +42,7 @@ class TokenSchema(BaseModel):
 
 
 class UserActivateRequestSchema(UserResetPassword):
-    activation_token: str
+    token: str
 
 
 class ResetPasswordCompleteRequestSchema(BaseModel):
